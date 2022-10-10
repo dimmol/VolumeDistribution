@@ -39,8 +39,6 @@ def best_fit_distribution(data, bins=200, ax=None):
         st.uniform,st.vonmises,st.vonmises_line,st.wald,st.weibull_min,st.weibull_max,st.wrapcauchy, st.trapz
     ] # These are crappy distributions: st.levy_stable, st.dweibull, st.gennorm, st.foldcauchy, st.dgamma,  
 
-    # DISTRIBUTIONS = [st.norm]
-
     # Best holders
     best_distribution = st.norm
     best_params = (0.0, 1.0)
@@ -104,7 +102,7 @@ def best_fit_cdf(prob, data, ax=None):
         st.pareto,st.pearson3,st.powerlaw,st.powerlognorm,st.powernorm,st.rdist,st.rayleigh,st.rice,
         st.recipinvgauss,st.semicircular,st.skewcauchy,st.skewnorm,st.studentized_range,st.t,
         st.trapezoid,st.triang,st.truncexpon,st.truncnorm,st.tukeylambda,
-        st.uniform,st.vonmises,st.vonmises_line,st.wald,st.weibull_min,st.weibull_max,st.wrapcauchy,] # These are crappy distributions: st.levy_stable, st.dweibull, st.gennorm, st.foldcauchy, st.dgamma,  
+        st.uniform,st.vonmises,st.vonmises_line,st.wald,st.weibull_min,st.weibull_max,st.wrapcauchy,]
 
     x_cont = np.linspace(0.01, 0.99, 10000)
 
@@ -208,15 +206,15 @@ def volume(arr):
         
     return(result)
 
-def vol_to_dist(arr):
+def vol_to_dist(arr, num_sampl=500):
     
     # aggregate = 0
     result = []
     prob = np.array([0.1, 0.5, 0.9])
-    x_cont = np.linspace(0.01, 0.99, 500)
-    # orig = pd.DataFrame({'data':data, 'prob':prob})
+    x_cont = np.linspace(0.01, 0.99, num_sampl)
+    plt.figure(figsize=(12,8))
 
-    for x in arr:
+    for y, x in arr:
         
         best_fit_name, best_fit_params = best_fit_cdf(prob, x)
         best_dist = getattr(st, best_fit_name)
@@ -226,13 +224,16 @@ def vol_to_dist(arr):
         ax = orig.plot('data', 'prob', kind='scatter', s=500, alpha=0.5, 
                        color=plt.rcParams['axes.prop_cycle'].by_key()['color'][1])
         extract.plot(lw=2, label='CDF', legend=True)
+        param_names = (best_dist.shapes + ', loc, scale').split(', ') if best_dist.shapes else ['loc', 'scale']
+        param_str = ', '.join(['{}={:0.2f}'.format(k,v) for k,v in zip(param_names, best_fit_params)])
+        dist_str = '{}({})'.format(best_fit_name, param_str)
+        
+        ax.set_title(y + u' Input data with best fit distribution \n' + dist_str, fontsize = 16)
+        ax.set_xlabel(u'Volume, MMstb', fontsize = 16)
+        ax.set_ylabel('Probability', fontsize = 16)
         plt.show()
         
         result.append(extract.index.to_numpy())
-        
-        # buff = np.random.choice(x)
-        # result.append(buff)
-        # aggregate += buff
         
     return(result)
 
@@ -243,14 +244,17 @@ if __name__ == '__main__':
     #Change humber of simulations if required
     num_simulations = 10000
 
-    df = pd.read_csv(r'D:\Users\molok\Documents\Temp\volumes_4243.csv')
+    df = pd.read_csv(r'..\bab3.csv')
     array_input = df.iloc[:, [3, 4, 5]].to_numpy()
     
-    df['Reference'] = df['Well']+"_"+df['Sand']
+    df['Reference'] = df['Well']+" "+df['Sand']
     dataset = pd.DataFrame(columns=df['Reference'].tolist())
     dataset['Volume'] = None
     
-    array = vol_to_dist(array_input)
+    array_names = df.Reference.to_numpy()
+    array_zip = zip(array_names, array_input)
+    
+    array = vol_to_dist(array_zip)
     
     for i in range(num_simulations):
         dataset.loc[len(dataset)] = volume(array)
@@ -294,12 +298,13 @@ if __name__ == '__main__':
     r'$P90=%.2f MMstb$' % p90))
     
     # Display
-    plt.figure(figsize=(12,8))
-    ax = pdf.plot(lw=2, label='PDF', legend=True)
-    ax.text(0.05, 0.95, textstr, transform=ax.transAxes, fontsize=10,
+    fig = plt.figure(figsize=(12,8))
+    ax = pdf.plot(lw=2, label='PDF')#, legend=True, , ax=ax
+    ax.text(0.05, 0.75, textstr, transform=ax.transAxes, fontsize=10,
         verticalalignment='top', bbox = dict(alpha = 0.5)) # facecolor = 'blue', 
-    data.plot(kind='hist', bins=50, density=True, alpha=0.5, label='Data', legend=True, ax=ax)
-    extract.plot(lw=2, label='CDF', legend=True)
+    data.plot(kind='hist', bins=50, density=True, alpha=0.5, label='Data', ax=ax)#, legend=True
+    ax2 = ax.twinx()
+    extract.plot(lw=2, label='CDF', ax=ax2, color='g')#, legend=True
     
     param_names = (best_dist.shapes + ', loc, scale').split(', ') if best_dist.shapes else ['loc', 'scale']
     param_str = ', '.join(['{}={:0.2f}'.format(k,v) for k,v in zip(param_names, best_fit_params)])
@@ -308,20 +313,32 @@ if __name__ == '__main__':
     ax.set_title(data_set_name + u' data with best fit distribution \n' + dist_str)
     ax.set_xlabel(u'Volume, MMstb')
     ax.set_ylabel('Frequency')
+    ax2.set_ylabel('Probability')
+    ax2.set_ylim(bottom=0, top=1)
+    # ax.set_ylim(ax.get_ylim())
+    # fig = plt.figure()
+    # fig.legend(loc="best")
+    # ax2.set_yticks(np.linspace(ax2.get_yticks()[0], ax2.get_yticks()[-1], len(ax.get_yticks())))
+    ax2.grid(None)
+    fig.legend(loc=(0.75, 0.75))
     
     extract.index.name = 'Volume'
     extract.name = 'Probability'
     extract = extract.to_frame().reset_index()
-    dataset = dataset.merge(extract)
-    dataset[(((dataset.Probability>=0.499) & (dataset.Probability<=0.501)) | 
-             ((dataset.Probability>=0.099) & (dataset.Probability<=0.101)) |
-             ((dataset.Probability>=0.899) & 
-              (dataset.Probability<=0.901)))].drop_duplicates().to_csv('out_STs.csv')
+    
+    combos = pd.DataFrame(np.stack(np.meshgrid(*array_input), axis=-1).reshape(-1, len(array_input)), 
+                          columns=array_names.tolist())
+    combos['Volume']=combos.sum(axis=1, numeric_only=True)
+    combos = pd.merge(combos, extract, on='Volume', how='outer').sort_values(by=['Volume'])
+    combos.reset_index(inplace=True, drop=True)
+    combos['Probability'] = combos.set_index('Volume')['Probability'].interpolate('index').values
+    combos.dropna(inplace=True)
+    combos.drop_duplicates(inplace=True)
+    
+    combos[(((combos.Probability>=0.49) & (combos.Probability<=0.51)) | 
+             ((combos.Probability>=0.09) & (combos.Probability<=0.11)) |
+             ((combos.Probability>=0.89) & 
+              (combos.Probability<=0.91)))].to_csv('out_b3.csv')
+    combos.to_csv('out_b3_all.csv')
     
     print("--- %s seconds ---" % (time.time() - start_time))
-
-    # print(extract.head())
-    # print(dataset.head())
-    # print(type(extract))
-    # print(extract.name)
-    # extract.to_csv('out.csv')
